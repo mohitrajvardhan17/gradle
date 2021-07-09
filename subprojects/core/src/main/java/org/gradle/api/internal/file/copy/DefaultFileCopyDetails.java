@@ -17,12 +17,17 @@
 package org.gradle.api.internal.file.copy;
 
 import groovy.lang.Closure;
+import org.gradle.api.Action;
 import org.gradle.api.Transformer;
 import org.gradle.api.file.ContentFilterable;
 import org.gradle.api.file.DuplicatesStrategy;
+import org.gradle.api.file.ExpandDetails;
 import org.gradle.api.file.FileVisitDetails;
 import org.gradle.api.file.RelativePath;
 import org.gradle.api.internal.file.AbstractFileTreeElement;
+import org.gradle.api.internal.provider.Providers;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
 import org.gradle.internal.file.Chmod;
 
 import javax.annotation.Nullable;
@@ -38,6 +43,7 @@ public class DefaultFileCopyDetails extends AbstractFileTreeElement implements F
     private final FileVisitDetails fileDetails;
     private final CopySpecResolver specResolver;
     private final FilterChain filterChain;
+    private final ObjectFactory objectFactory;
     private boolean defaultDuplicatesStrategy;
     private RelativePath relativePath;
     private boolean excluded;
@@ -45,11 +51,12 @@ public class DefaultFileCopyDetails extends AbstractFileTreeElement implements F
     private DuplicatesStrategy duplicatesStrategy;
 
     @Inject
-    public DefaultFileCopyDetails(FileVisitDetails fileDetails, CopySpecResolver specResolver, Chmod chmod) {
+    public DefaultFileCopyDetails(FileVisitDetails fileDetails, CopySpecResolver specResolver, ObjectFactory objectFactory, Chmod chmod) {
         super(chmod);
         this.filterChain = new FilterChain(specResolver.getFilteringCharset());
         this.fileDetails = fileDetails;
         this.specResolver = specResolver;
+        this.objectFactory = objectFactory;
         this.duplicatesStrategy = specResolver.getDuplicatesStrategy();
         this.defaultDuplicatesStrategy = specResolver.isDefaultDuplicateStrategy();
     }
@@ -215,7 +222,15 @@ public class DefaultFileCopyDetails extends AbstractFileTreeElement implements F
 
     @Override
     public ContentFilterable expand(Map<String, ?> properties) {
-        filterChain.expand(properties);
+        filterChain.expand(properties, Providers.notDefined());
+        return this;
+    }
+
+    @Override
+    public ContentFilterable expand(Map<String, ?> properties, Action<? super ExpandDetails> action) {
+        ExpandDetails details = objectFactory.newInstance(ExpandDetailsImpl.class);
+        action.execute(details);
+        filterChain.expand(properties, details.getEscapeBackslash());
         return this;
     }
 
@@ -265,6 +280,20 @@ public class DefaultFileCopyDetails extends AbstractFileTreeElement implements F
         @Override
         public void write(byte[] b, int off, int len) throws IOException {
             size += len;
+        }
+    }
+
+    public static class ExpandDetailsImpl implements ExpandDetails {
+        private final Property<Boolean> escapeBackslash;
+
+        @Inject
+        public ExpandDetailsImpl(ObjectFactory objectFactory) {
+            escapeBackslash = objectFactory.property(Boolean.class).convention(false);
+        }
+
+        @Override
+        public Property<Boolean> getEscapeBackslash() {
+            return escapeBackslash;
         }
     }
 }
