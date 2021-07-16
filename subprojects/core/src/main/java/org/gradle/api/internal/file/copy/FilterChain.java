@@ -119,9 +119,7 @@ public class FilterChain implements Transformer<InputStream, InputStream> {
                     Template template;
                     try {
                         SimpleTemplateEngine engine = new SimpleTemplateEngine();
-                        if (escapeBackslash.isPresent()) {
-                            engine.setEscapeBackslash(escapeBackslash.get());
-                        }
+                        engine.setEscapeBackslash(escapeBackslash.get());
                         template = engine.createTemplate(original);
                     } finally {
                         original.close();

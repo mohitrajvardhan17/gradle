@@ -381,7 +381,6 @@ public interface CopySpec extends CopySourceSpec, CopyProcessingSpec, PatternFil
 
     /**
      * {@inheritDoc}
-     * @since 7.2
      */
     @Override
     CopySpec expand(Map<String, ?> properties, Action<? super ExpandDetails> action);

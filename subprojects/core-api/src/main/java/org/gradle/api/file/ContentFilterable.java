@@ -90,12 +90,7 @@ public interface ContentFilterable {
      * <p>
      * Note that all escape sequences ({@code \n}, {@code \t}, {@code \\}, etc) are converted to the symbols
      * they represent, so, for example, {@code \n} becomes newline. If this is undesirable then {@link #expand(Map, Action)}
-     * should be used to disable this behavior:
-     * <pre>
-     *  expand(one: '1', two: 2) {
-     *      escapeBackslash = true
-     *  }
-     * </pre>
+     * should be used to disable this behavior.
      *
      * @param properties to implement line based filtering
      * @return this
@@ -106,11 +101,18 @@ public interface ContentFilterable {
      * <p>Expands property references in each file as it is copied. More specifically, each file is transformed using
      * Groovy's {@link groovy.text.SimpleTemplateEngine}. This means you can use simple property references, such as
      * <code>$property</code> or <code>${property}</code> in the file. You can also include arbitrary Groovy code in the
-     * file, such as <code>${version ?: 'unknown'}</code> or <code>${classpath*.name.join(' ')}</code>
+     * file, such as <code>${version ?: 'unknown'}</code> or <code>${classpath*.name.join(' ')}</code>. The template
+     * engine can be configured with the provided action.
      * <p>
      * Note that by default all escape sequences ({@code \n}, {@code \t}, {@code \\}, etc) are converted to the symbols
      * they represent, so, for example, {@code \n} becomes newline. This behavior is controlled by
-     * {@link ExpandDetails#getEscapeBackslash()} property.
+     * {@link ExpandDetails#getEscapeBackslash()} property. It should be set to {@code true} to disable escape sequences
+     * conversion:
+     * <pre>
+     *  expand(one: '1', two: 2) {
+     *      escapeBackslash = true
+     *  }
+     * </pre>
      *
      * @param properties to implement line based filtering
      * @param action action to perform additional configuration of the underlying template engine

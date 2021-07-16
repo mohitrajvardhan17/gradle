@@ -25,9 +25,8 @@ import org.gradle.api.file.ExpandDetails;
 import org.gradle.api.file.FileVisitDetails;
 import org.gradle.api.file.RelativePath;
 import org.gradle.api.internal.file.AbstractFileTreeElement;
-import org.gradle.api.internal.provider.Providers;
 import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.provider.Property;
+import org.gradle.internal.Actions;
 import org.gradle.internal.file.Chmod;
 
 import javax.annotation.Nullable;
@@ -222,13 +221,13 @@ public class DefaultFileCopyDetails extends AbstractFileTreeElement implements F
 
     @Override
     public ContentFilterable expand(Map<String, ?> properties) {
-        filterChain.expand(properties, Providers.notDefined());
-        return this;
+        return expand(properties, Actions.doNothing());
     }
 
     @Override
     public ContentFilterable expand(Map<String, ?> properties, Action<? super ExpandDetails> action) {
-        ExpandDetails details = objectFactory.newInstance(ExpandDetailsImpl.class);
+        ExpandDetails details = objectFactory.newInstance(ExpandDetails.class);
+        details.getEscapeBackslash().convention(false);
         action.execute(details);
         filterChain.expand(properties, details.getEscapeBackslash());
         return this;
@@ -280,20 +279,6 @@ public class DefaultFileCopyDetails extends AbstractFileTreeElement implements F
         @Override
         public void write(byte[] b, int off, int len) throws IOException {
             size += len;
-        }
-    }
-
-    public static class ExpandDetailsImpl implements ExpandDetails {
-        private final Property<Boolean> escapeBackslash;
-
-        @Inject
-        public ExpandDetailsImpl(ObjectFactory objectFactory) {
-            escapeBackslash = objectFactory.property(Boolean.class).convention(false);
-        }
-
-        @Override
-        public Property<Boolean> getEscapeBackslash() {
-            return escapeBackslash;
         }
     }
 }
