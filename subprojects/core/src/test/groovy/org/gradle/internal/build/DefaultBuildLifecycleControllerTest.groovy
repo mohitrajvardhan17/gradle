@@ -74,6 +74,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
         def controller = controller()
 
+        controller.prepareToScheduleTasks()
         controller.scheduleRequestedTasks()
         def executionResult = controller.executeTasks()
         executionResult.failures.empty

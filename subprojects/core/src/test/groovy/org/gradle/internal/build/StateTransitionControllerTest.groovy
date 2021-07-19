@@ -261,6 +261,6 @@ class StateTransitionControllerTest extends ConcurrentSpec {
 
         then:
         def e = thrown(IllegalStateException)
-        e.message == "Another thread is currently transitioning state."
+        e.message == "Another thread is currently transitioning state from A to B."
     }
 }

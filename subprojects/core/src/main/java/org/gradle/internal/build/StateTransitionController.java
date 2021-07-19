@@ -134,7 +134,23 @@ public class StateTransitionController<T extends StateTransitionController.State
     }
 
     /**
-     * Transitions to the given "to" state. Does nothing if the "to" state has already been transitioned to (but is not necessarily the current state).
+     * Transitions to the given "to" state. Does nothing if the current state is the "to" state.
+     * Fails if the current state is not either of the given "to" or "from" state or if some other transition is happening or a previous transition has failed.
+     */
+    public void maybeTransition(T fromState, T toState, Runnable action) {
+        Thread previousOwner = takeOwnership();
+        try {
+            if (state == toState && currentTarget == null) {
+                return;
+            }
+            doTransition(fromState, toState, action);
+        } finally {
+            releaseOwnership(previousOwner);
+        }
+    }
+
+    /**
+     * Transitions to the given "to" state. Does nothing if the "to" state has already been transitioned to at some point in the past (but is not necessarily the current state).
      * Fails if the current state is not the given "from" state or if some other transition is happening or a previous transition has failed.
      */
     public void transitionIfNotPreviously(T fromState, T toState, Runnable action) {

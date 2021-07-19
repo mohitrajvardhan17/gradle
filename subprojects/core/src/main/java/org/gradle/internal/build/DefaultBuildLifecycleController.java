@@ -32,7 +32,12 @@ import java.util.function.Consumer;
 
 public class DefaultBuildLifecycleController implements BuildLifecycleController {
     private enum State implements StateTransitionController.State {
-        Configure, TaskSchedule, TaskExecution, Finished;
+        // Configuring the build, can access build model
+        Configure,
+        // Scheduling tasks for execution
+        TaskSchedule,
+        // build has finished and should do no further work
+        Finished
     }
 
     private final ExceptionAnalyser exceptionAnalyser;
@@ -87,7 +92,7 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
 
     @Override
     public void prepareToScheduleTasks() {
-        controller.transitionIfNotPreviously(State.Configure, State.TaskSchedule, () -> {
+        controller.maybeTransition(State.Configure, State.TaskSchedule, () -> {
             hasTasks = true;
             modelController.prepareToScheduleTasks();
         });
@@ -105,7 +110,8 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
 
     @Override
     public ExecutionResult<Void> executeTasks() {
-        return controller.tryTransition(State.TaskSchedule, State.TaskExecution, () -> workExecutor.execute(gradle));
+        // Execute tasks and transition back to "configure", as this build may run more tasks;
+        return controller.tryTransition(State.TaskSchedule, State.Configure, () -> workExecutor.execute(gradle));
     }
 
     @Override
