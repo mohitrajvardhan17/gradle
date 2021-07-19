@@ -100,7 +100,7 @@ class StateTransitionControllerTest extends ConcurrentSpec {
         controller.transition(TestState.A, TestState.B) {}
 
         when:
-        controller.notInState(TestState.A, action)
+        controller.notInStateIgnoreOtherThreads(TestState.A, action)
 
         then:
         1 * action.get() >> "result"
@@ -113,7 +113,7 @@ class StateTransitionControllerTest extends ConcurrentSpec {
         controller.transition(TestState.A, TestState.B) {}
 
         when:
-        controller.notInState(TestState.B, action)
+        controller.notInStateIgnoreOtherThreads(TestState.B, action)
 
         then:
         def e = thrown(IllegalStateException)

@@ -55,25 +55,11 @@ public class StateTransitionController<T extends StateTransitionController.State
     }
 
     /**
-     * Verifies that the current state is not in the given state. Ignores any transition in progress and failures of previous transitions.
-     *
-     * <p>You should try to not use this method, as it does not provide any thread safety for the code that follows the call.</p>
+     * Calculates a value when the current state is not the given state. Allows concurrent access to the state and does not block other threads from transitioning the state.
+     * Fails if the current state is the given state or if a transition to the given state is happening or a previous transition has failed.
      */
-    public void assertNotInState(T finished) {
+    public <S> S notInStateIgnoreOtherThreads(T state, Supplier<S> supplier) {
         synchronized (this) {
-            if (state == finished) {
-                throw new IllegalStateException("Should not be in state " + state + ".");
-            }
-        }
-    }
-
-    /**
-     * Calculates a value when the current state is not the given state.
-     * Fails if the current state is the given state or if some transition is happening or a previous transition has failed.
-     */
-    public <S> S notInState(T state, Supplier<S> supplier) {
-        Thread previousOwner = takeOwnership();
-        try {
             assertNotFailed();
             if (currentTarget == state) {
                 throw new IllegalStateException("Should not be in state " + state + " but is in state " + this.state + " and transitioning to " + currentTarget + ".");
@@ -81,10 +67,8 @@ public class StateTransitionController<T extends StateTransitionController.State
             if (this.state == state) {
                 throw new IllegalStateException("Should not be in state " + state + ".");
             }
-            return supplier.get();
-        } finally {
-            releaseOwnership(previousOwner);
         }
+        return supplier.get();
     }
 
     /**

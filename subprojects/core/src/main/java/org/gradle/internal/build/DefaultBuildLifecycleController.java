@@ -76,18 +76,24 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
 
     @Override
     public GradleInternal getGradle() {
-        controller.assertNotInState(State.Finished);
-        return gradle;
+        // Should not ignore other threads, however it is possible for this to be queried by tasks at execution time (that is, when another thread is transitioning
+        // the task graph state). Instead, it may be better to:
+        // - have the threads use some specific immutable view of the build model state instead of requiring direct access to the build model.
+        // - not have a thread blocked around task execution, so that other threads can use the build model.
+        // - maybe split the states into one for the build model and one for the task graph.
+        return controller.notInStateIgnoreOtherThreads(State.Finished, () -> gradle);
     }
 
     @Override
     public SettingsInternal getLoadedSettings() {
-        return controller.notInState(State.Finished, modelController::getLoadedSettings);
+        // Should not ignore other threads. See above.
+        return controller.notInStateIgnoreOtherThreads(State.Finished, modelController::getLoadedSettings);
     }
 
     @Override
     public GradleInternal getConfiguredBuild() {
-        return controller.notInState(State.Finished, modelController::getConfiguredModel);
+        // Should not ignore other threads. See above.
+        return controller.notInStateIgnoreOtherThreads(State.Finished, modelController::getConfiguredModel);
     }
 
     @Override
