@@ -42,16 +42,28 @@ public class StateTransitionController<T extends StateTransitionController.State
     }
 
     /**
-     * Verifies that the current state is the given state. Ignores transitions and failures of previous transitions.
+     * Verifies that the current state is the given state. Ignores any transition in progress and failures of previous transitions.
+     *
+     * <p>You should try to not use this method, as it does not provide any thread safety for the code that follows the call.</p>
      */
     public void assertInState(T finished) {
-        Thread previousOwner = takeOwnership();
-        try {
+        synchronized (this) {
             if (state != finished) {
+                throw new IllegalStateException("Should be in state " + state + ".");
+            }
+        }
+    }
+
+    /**
+     * Verifies that the current state is not in the given state. Ignores any transition in progress and failures of previous transitions.
+     *
+     * <p>You should try to not use this method, as it does not provide any thread safety for the code that follows the call.</p>
+     */
+    public void assertNotInState(T finished) {
+        synchronized (this) {
+            if (state == finished) {
                 throw new IllegalStateException("Should not be in state " + state + ".");
             }
-        } finally {
-            releaseOwnership(previousOwner);
         }
     }
 
@@ -212,7 +224,7 @@ public class StateTransitionController<T extends StateTransitionController.State
             } else if (owner == currentThread) {
                 return currentThread;
             } else {
-                throw new IllegalStateException("Another thread is currently transitioning state.");
+                throw new IllegalStateException("Another thread is currently transitioning state from " + state + " to " + currentTarget + ".");
             }
         }
     }

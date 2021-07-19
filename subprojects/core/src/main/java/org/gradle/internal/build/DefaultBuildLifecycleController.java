@@ -29,7 +29,6 @@ import org.gradle.internal.service.scopes.BuildScopeServices;
 
 import javax.annotation.Nullable;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public class DefaultBuildLifecycleController implements BuildLifecycleController {
     private enum State implements StateTransitionController.State {
@@ -72,17 +71,18 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
 
     @Override
     public GradleInternal getGradle() {
-        return withModelInUsableState(() -> gradle);
+        controller.assertNotInState(State.Finished);
+        return gradle;
     }
 
     @Override
     public SettingsInternal getLoadedSettings() {
-        return withModelInUsableState(modelController::getLoadedSettings);
+        return controller.notInState(State.Finished, modelController::getLoadedSettings);
     }
 
     @Override
     public GradleInternal getConfiguredBuild() {
-        return withModelInUsableState(modelController::getConfiguredModel);
+        return controller.notInState(State.Finished, modelController::getConfiguredModel);
     }
 
     @Override
@@ -106,10 +106,6 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
     @Override
     public ExecutionResult<Void> executeTasks() {
         return controller.tryTransition(State.TaskSchedule, State.TaskExecution, () -> workExecutor.execute(gradle));
-    }
-
-    private <T> T withModelInUsableState(Supplier<T> action) {
-        return controller.notInState(State.Finished, action);
     }
 
     @Override

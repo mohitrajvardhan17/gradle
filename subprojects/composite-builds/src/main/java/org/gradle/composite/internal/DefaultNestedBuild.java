@@ -67,7 +67,7 @@ class DefaultNestedBuild extends AbstractBuildState implements StandAloneNestedB
         this.projectStateRegistry = projectStateRegistry;
 
         buildScopeServices = new BuildScopeServices(buildTree.getServices());
-        this.buildLifecycleController = buildLifecycleControllerFactory.newInstance(buildDefinition, this, owner.getMutableModel(), buildScopeServices);
+        this.buildLifecycleController = buildLifecycleControllerFactory.newInstance(buildDefinition, this, owner, buildScopeServices);
 
         IncludedBuildTaskGraph taskGraph = buildScopeServices.get(IncludedBuildTaskGraph.class);
         ExceptionAnalyser exceptionAnalyser = buildScopeServices.get(ExceptionAnalyser.class);
