@@ -19,6 +19,7 @@ import org.gradle.api.internal.GradleInternal;
 import org.gradle.api.internal.SettingsInternal;
 import org.gradle.configuration.ProjectsPreparer;
 import org.gradle.internal.build.BuildModelController;
+import org.gradle.internal.build.StateTransitionController;
 
 public class VintageBuildModelController implements BuildModelController {
     private enum Stage implements StateTransitionController.State {
@@ -85,18 +86,18 @@ public class VintageBuildModelController implements BuildModelController {
     }
 
     private void prepareSettings() {
-        controller.maybeTransition(Stage.Created, Stage.LoadSettings, () -> settingsPreparer.prepareSettings(gradle));
+        controller.transitionIfNotPreviously(Stage.Created, Stage.LoadSettings, () -> settingsPreparer.prepareSettings(gradle));
     }
 
     private void prepareProjects() {
-        controller.maybeTransition(Stage.LoadSettings, Stage.Configure, () -> projectsPreparer.prepareProjects(gradle));
+        controller.transitionIfNotPreviously(Stage.LoadSettings, Stage.Configure, () -> projectsPreparer.prepareProjects(gradle));
     }
 
     private void prepareTaskGraph() {
-        controller.maybeTransition(Stage.Configure, Stage.ScheduleTasks, () -> taskGraphPreparer.prepareForTaskScheduling(gradle));
+        controller.transitionIfNotPreviously(Stage.Configure, Stage.ScheduleTasks, () -> taskGraphPreparer.prepareForTaskScheduling(gradle));
     }
 
     private void prepareTaskExecution() {
-        controller.maybeTransition(Stage.ScheduleTasks, Stage.TaskGraph, () -> taskExecutionPreparer.prepareForTaskExecution(gradle));
+        controller.transitionIfNotPreviously(Stage.ScheduleTasks, Stage.TaskGraph, () -> taskExecutionPreparer.prepareForTaskExecution(gradle));
     }
 }

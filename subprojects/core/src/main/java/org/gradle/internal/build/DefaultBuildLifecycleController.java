@@ -32,16 +32,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class DefaultBuildLifecycleController implements BuildLifecycleController {
-    private enum State {
-        Created, Configure, TaskGraph, Finished;
-
-        String getDisplayName() {
-            if (TaskGraph == this) {
-                return "Build";
-            } else {
-                return "Configure";
-            }
-        }
+    private enum State implements StateTransitionController.State {
+        Configure, TaskSchedule, TaskExecution, Finished;
     }
 
     private final ExceptionAnalyser exceptionAnalyser;
@@ -51,11 +43,10 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
     private final BuildWorkPreparer workPreparer;
     private final BuildWorkExecutor workExecutor;
     private final BuildScopeServices buildServices;
-    private final GradleInternal gradle;
     private final BuildModelController modelController;
-    private State state = State.Created;
-    @Nullable
-    private ExecutionResult<?> stageFailures;
+    private final StateTransitionController<State> controller = new StateTransitionController<>(State.Configure);
+    private final GradleInternal gradle;
+    private boolean hasTasks;
 
     public DefaultBuildLifecycleController(
         GradleInternal gradle,
@@ -81,114 +72,68 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
 
     @Override
     public GradleInternal getGradle() {
-        if (state == State.Finished) {
-            throw new IllegalStateException("Cannot use Gradle object after build has finished.");
-        }
-        return gradle;
+        return withModelInUsableState(() -> gradle);
     }
 
     @Override
     public SettingsInternal getLoadedSettings() {
-        return withModelOrThrow(modelController::getLoadedSettings);
+        return withModelInUsableState(modelController::getLoadedSettings);
     }
 
     @Override
     public GradleInternal getConfiguredBuild() {
-        return withModelOrThrow(modelController::getConfiguredModel);
+        return withModelInUsableState(modelController::getConfiguredModel);
     }
 
     @Override
     public void prepareToScheduleTasks() {
-        withModelOrThrow(() -> {
-            state = State.TaskGraph;
+        controller.transitionIfNotPreviously(State.Configure, State.TaskSchedule, () -> {
+            hasTasks = true;
             modelController.prepareToScheduleTasks();
-            return null;
         });
     }
 
     @Override
     public void scheduleRequestedTasks() {
-        withModelOrThrow(() -> {
-            state = State.TaskGraph;
-            modelController.prepareToScheduleTasks();
-            workPreparer.populateWorkGraph(gradle, taskGraph -> modelController.scheduleRequestedTasks());
-            return null;
-        });
+        populateWorkGraph(taskGraph -> modelController.scheduleRequestedTasks());
     }
 
     @Override
     public void populateWorkGraph(Consumer<? super TaskExecutionGraphInternal> action) {
-        withModelOrThrow(() -> {
-            state = State.TaskGraph;
-            modelController.prepareToScheduleTasks();
-            workPreparer.populateWorkGraph(gradle, action);
-            return null;
-        });
+        controller.inState(State.TaskSchedule, () -> workPreparer.populateWorkGraph(gradle, action));
     }
 
     @Override
     public ExecutionResult<Void> executeTasks() {
-        return withModel(() -> {
-            if (state != State.TaskGraph) {
-                throw new IllegalStateException("Cannot execute tasks as none have been scheduled for this build yet.");
-            }
-            return workExecutor.execute(gradle);
-        });
+        return controller.tryTransition(State.TaskSchedule, State.TaskExecution, () -> workExecutor.execute(gradle));
     }
 
-    private <T> T withModelOrThrow(Supplier<T> action) {
-        return withModel(() -> {
-            try {
-                T result = action.get();
-                return ExecutionResult.succeeded(result);
-            } catch (Throwable t) {
-                return ExecutionResult.failed(exceptionAnalyser.transform(t));
-            }
-        }).getValueOrRethrow();
-    }
-
-    private <T> ExecutionResult<T> withModel(Supplier<ExecutionResult<T>> action) {
-        if (stageFailures != null) {
-            throw new IllegalStateException("Cannot do further work as this build has failed.", stageFailures.getFailure());
-        }
-        if (state == State.Finished) {
-            throw new IllegalStateException("Cannot do further work as this build has finished.");
-        }
-        ExecutionResult<T> result = action.get();
-        if (state == State.Created) {
-            state = State.Configure;
-        }
-        if (!result.getFailures().isEmpty()) {
-            stageFailures = result;
-        }
-        return result;
+    private <T> T withModelInUsableState(Supplier<T> action) {
+        return controller.notInState(State.Finished, action);
     }
 
     @Override
     public ExecutionResult<Void> finishBuild(@Nullable Throwable failure) {
-        if (state == State.Finished) {
-            return ExecutionResult.succeeded();
-        }
-        // Fire the build finished events even if nothing has happened to this build, because quite a lot of internal infrastructure
-        // adds listeners and expects to see a build finished event. Infrastructure should not be using the public listener types
-        // In addition, they almost all should be using a build tree scoped event instead of a build scoped event
+        return controller.finish(State.Finished, stageFailures -> {
+            // Fire the build finished events even if nothing has happened to this build, because quite a lot of internal infrastructure
+            // adds listeners and expects to see a build finished event. Infrastructure should not be using the public listener types
+            // In addition, they almost all should be using a build tree scoped event instead of a build scoped event
 
-        Throwable reportableFailure = failure;
-        if (reportableFailure == null && stageFailures != null) {
-            reportableFailure = exceptionAnalyser.transform(stageFailures.getFailures());
-        }
-        BuildResult buildResult = new BuildResult(state.getDisplayName(), gradle, reportableFailure);
-        ExecutionResult<Void> finishResult;
-        try {
-            buildListener.buildFinished(buildResult);
-            buildFinishedListener.buildFinished((GradleInternal) buildResult.getGradle(), buildResult.getFailure() != null);
-            finishResult = ExecutionResult.succeeded();
-        } catch (Throwable t) {
-            finishResult = ExecutionResult.failed(t);
-        }
-        state = State.Finished;
-        stageFailures = null;
-        return finishResult;
+            Throwable reportableFailure = failure;
+            if (reportableFailure == null && !stageFailures.getFailures().isEmpty()) {
+                reportableFailure = exceptionAnalyser.transform(stageFailures.getFailures());
+            }
+            BuildResult buildResult = new BuildResult(hasTasks ? "Build" : "Configure", gradle, reportableFailure);
+            ExecutionResult<Void> finishResult;
+            try {
+                buildListener.buildFinished(buildResult);
+                buildFinishedListener.buildFinished((GradleInternal) buildResult.getGradle(), buildResult.getFailure() != null);
+                finishResult = ExecutionResult.succeeded();
+            } catch (Throwable t) {
+                finishResult = ExecutionResult.failed(t);
+            }
+            return finishResult;
+        });
     }
 
     /**
@@ -199,14 +144,12 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
      */
     @Override
     public void addListener(Object listener) {
-        gradle.addListener(listener);
+        getGradle().addListener(listener);
     }
 
     @Override
     public void stop() {
-        if (state != State.Created && state != State.Finished) {
-            throw new IllegalStateException("This build has not been finished.");
-        }
+        controller.assertInState(State.Finished);
         try {
             CompositeStoppable.stoppable(buildServices).stop();
         } finally {
