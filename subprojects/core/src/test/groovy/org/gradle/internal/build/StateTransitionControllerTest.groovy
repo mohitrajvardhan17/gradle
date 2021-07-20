@@ -71,7 +71,6 @@ class StateTransitionControllerTest extends ConcurrentSpec {
         then:
         def e2 = thrown(IllegalStateException)
         e2.message == "Cannot use this object as a previous transition failed."
-        e2.cause == failure
 
         and:
         0 * _
@@ -169,7 +168,6 @@ class StateTransitionControllerTest extends ConcurrentSpec {
         then:
         def e2 = thrown(IllegalStateException)
         e2.message == "Cannot use this object as a previous transition failed."
-        e2.cause == failure
 
         and:
         0 * _
@@ -226,7 +224,6 @@ class StateTransitionControllerTest extends ConcurrentSpec {
         then:
         def e2 = thrown(IllegalStateException)
         e2.message == "Cannot use this object as a previous transition failed."
-        e2.cause == failure
 
         and:
         0 * _
@@ -311,7 +308,6 @@ class StateTransitionControllerTest extends ConcurrentSpec {
         then:
         def e2 = thrown(IllegalStateException)
         e2.message == "Cannot use this object as a previous transition failed."
-        e2.cause == failure
 
         and:
         0 * _

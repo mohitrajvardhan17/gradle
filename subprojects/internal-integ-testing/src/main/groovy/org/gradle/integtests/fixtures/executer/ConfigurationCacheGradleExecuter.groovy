@@ -23,7 +23,7 @@ import org.gradle.test.fixtures.file.TestDirectoryProvider
 import org.gradle.util.GradleVersion
 
 
-class ConfigurationCacheGradleExecuter extends DaemonGradleExecuter {
+class ConfigurationCacheGradleExecuter extends InProcessGradleExecuter {
 
     static final List<String> CONFIGURATION_CACHE_ARGS = [
         "--${ConfigurationCacheOption.LONG_OPTION}",

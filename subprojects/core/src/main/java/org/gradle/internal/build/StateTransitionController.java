@@ -48,10 +48,23 @@ public class StateTransitionController<T extends StateTransitionController.State
      *
      * <p>You should try to not use this method, as it does not provide any thread safety for the code that follows the call.</p>
      */
-    public void assertInState(T finished) {
+    public void assertInState(T expected) {
         synchronized (this) {
-            if (state != finished) {
-                throw new IllegalStateException("Should be in state " + finished + ".");
+            if (state != expected) {
+                throw new IllegalStateException("Should be in state " + expected + ".");
+            }
+        }
+    }
+
+    /**
+     * Verifies that the current state is not the given state. Ignores any transition in progress and failures of previous transitions.
+     *
+     * <p>You should try to not use this method, as it does not provide any thread safety for the code that follows the call.</p>
+     */
+    public void assertNotInState(T forbidden) {
+        synchronized (this) {
+            if (state == forbidden) {
+                throw new IllegalStateException("Should not be in state " + forbidden + ".");
             }
         }
     }
@@ -62,14 +75,14 @@ public class StateTransitionController<T extends StateTransitionController.State
      *
      * <p>You should try to not use this method, as it does not provide full thread safety.</p>
      */
-    public <S> S notInStateIgnoreOtherThreads(T state, Supplier<S> supplier) {
+    public <S> S notInStateIgnoreOtherThreads(T forbidden, Supplier<S> supplier) {
         synchronized (this) {
             assertNotFailed();
-            if (currentTarget == state) {
-                throw new IllegalStateException("Should not be in state " + state + " but is in state " + this.state + " and transitioning to " + currentTarget + ".");
+            if (currentTarget == forbidden) {
+                throw new IllegalStateException("Should not be in state " + forbidden + " but is in state " + this.state + " and transitioning to " + currentTarget + ".");
             }
-            if (this.state == state) {
-                throw new IllegalStateException("Should not be in state " + state + ".");
+            if (this.state == forbidden) {
+                throw new IllegalStateException("Should not be in state " + forbidden + ".");
             }
         }
         try {
@@ -88,15 +101,15 @@ public class StateTransitionController<T extends StateTransitionController.State
      * Runs the given action when the current state is the given state.
      * Fails if the current state is not the given state or if some transition is happening or a previous transition has failed.
      */
-    public void inState(T state, Runnable action) {
+    public void inState(T expected, Runnable action) {
         Thread previousOwner = takeOwnership();
         try {
             assertNotFailed();
             if (currentTarget != null) {
-                throw new IllegalStateException("Expected to be in state " + state + " but is in state " + this.state + " and transitioning to " + currentTarget + ".");
+                throw new IllegalStateException("Expected to be in state " + expected + " but is in state " + state + " and transitioning to " + currentTarget + ".");
             }
-            if (this.state != state) {
-                throw new IllegalStateException("Expected to be in state " + state + " but is in state " + this.state + ".");
+            if (state != expected) {
+                throw new IllegalStateException("Expected to be in state " + expected + " but is in state " + state + ".");
             }
             try {
                 action.run();
@@ -228,7 +241,7 @@ public class StateTransitionController<T extends StateTransitionController.State
 
     private void assertNotFailed() {
         if (failure != null) {
-            throw new IllegalStateException("Cannot use this object as a previous transition failed.", failure.getFailure());
+            throw new IllegalStateException("Cannot use this object as a previous transition failed.");
         }
     }
 

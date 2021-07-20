@@ -81,7 +81,8 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
         // - have the threads use some specific immutable view of the build model state instead of requiring direct access to the build model.
         // - not have a thread blocked around task execution, so that other threads can use the build model.
         // - maybe split the states into one for the build model and one for the task graph.
-        return controller.notInStateIgnoreOtherThreads(State.Finished, () -> gradle);
+        controller.assertNotInState(State.Finished);
+        return gradle;
     }
 
     @Override
