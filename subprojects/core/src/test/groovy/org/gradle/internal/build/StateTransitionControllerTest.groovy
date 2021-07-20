@@ -77,7 +77,7 @@ class StateTransitionControllerTest extends ConcurrentSpec {
         0 * _
     }
 
-    def "fails transition when already transitioning"() {
+    def "fails transition when current thread is already transitioning"() {
         def action = Mock(Runnable)
         def controller = new StateTransitionController(TestState.A)
 
@@ -92,6 +92,30 @@ class StateTransitionControllerTest extends ConcurrentSpec {
             controller.transition(TestState.A, TestState.B, {})
         }
         0 * _
+    }
+
+    def "cannot attempt to transition while another thread is performing transition"() {
+        def controller = new StateTransitionController(TestState.A)
+
+        when:
+        async {
+            start {
+                controller.transition(TestState.A, TestState.B) {
+                    instant.transitioning
+                    thread.block()
+                }
+            }
+            start {
+                thread.blockUntil.transitioning
+                controller.transition(TestState.A, TestState.B) {
+                }
+            }
+
+        }
+
+        then:
+        def e = thrown(IllegalStateException)
+        e.message == "Another thread is currently transitioning state from A to B."
     }
 
     def "runs action when not in forbidden state"() {
@@ -122,6 +146,35 @@ class StateTransitionControllerTest extends ConcurrentSpec {
         0 * _
     }
 
+    def "collects action failure when not in forbidden state"() {
+        def failure = new RuntimeException()
+        def action = Mock(Supplier)
+        def controller = new StateTransitionController(TestState.A)
+        controller.transition(TestState.A, TestState.B) {}
+
+        when:
+        controller.notInStateIgnoreOtherThreads(TestState.A, action)
+
+        then:
+        def e = thrown(RuntimeException)
+        e == failure
+
+        and:
+        1 * action.get() >> { throw failure }
+        0 * _
+
+        when:
+        controller.notInStateIgnoreOtherThreads(TestState.B, action)
+
+        then:
+        def e2 = thrown(IllegalStateException)
+        e2.message == "Cannot use this object as a previous transition failed."
+        e2.cause == failure
+
+        and:
+        0 * _
+    }
+
     def "runs action when in expected state"() {
         def action = Mock(Runnable)
         def controller = new StateTransitionController(TestState.A)
@@ -148,6 +201,59 @@ class StateTransitionControllerTest extends ConcurrentSpec {
         e.message == "Expected to be in state C but is in state B."
 
         0 * _
+    }
+
+    def "collects action failure when in expected state"() {
+        def failure = new RuntimeException()
+        def action = Mock(Runnable)
+        def controller = new StateTransitionController(TestState.A)
+        controller.transition(TestState.A, TestState.B) {}
+
+        when:
+        controller.inState(TestState.B, action)
+
+        then:
+        def e = thrown(RuntimeException)
+        e == failure
+
+        and:
+        1 * action.run() >> { throw failure }
+        0 * _
+
+        when:
+        controller.inState(TestState.B, action)
+
+        then:
+        def e2 = thrown(IllegalStateException)
+        e2.message == "Cannot use this object as a previous transition failed."
+        e2.cause == failure
+
+        and:
+        0 * _
+    }
+
+    def "cannot attempt to run action while another thread is performing transition"() {
+        def controller = new StateTransitionController(TestState.A)
+
+        when:
+        async {
+            start {
+                controller.transition(TestState.A, TestState.B) {
+                    instant.transitioning
+                    thread.block()
+                }
+            }
+            start {
+                thread.blockUntil.transitioning
+                controller.inState(TestState.A) {
+                }
+            }
+
+        }
+
+        then:
+        def e = thrown(IllegalStateException)
+        e.message == "Another thread is currently transitioning state from A to B."
     }
 
     def "runs action for conditional transition when in from state"() {

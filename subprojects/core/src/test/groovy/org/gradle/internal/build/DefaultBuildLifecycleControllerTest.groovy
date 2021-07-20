@@ -68,7 +68,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
     void testScheduleAndRunRequestedTasks() {
         expect:
-        expectTaskGraphBuilt()
+        expectRequestedTasksScheduled()
         expectTasksRun()
         expectBuildFinished()
 
@@ -78,6 +78,30 @@ class DefaultBuildLifecycleControllerTest extends Specification {
         controller.scheduleRequestedTasks()
         def executionResult = controller.executeTasks()
         executionResult.failures.empty
+
+        def finishResult = controller.finishBuild(null)
+        finishResult.failures.empty
+    }
+
+    void testScheduleAndRunRequestedTasksMultipleTimes() {
+        expect:
+        expectRequestedTasksScheduled()
+        expectTasksRun()
+        expectTasksScheduled()
+        expectTasksRun()
+        expectBuildFinished()
+
+        def controller = controller()
+
+        controller.prepareToScheduleTasks()
+        controller.scheduleRequestedTasks()
+        def executionResult = controller.executeTasks()
+        executionResult.failures.empty
+
+        controller.prepareToScheduleTasks()
+        controller.populateWorkGraph { }
+        def executionResult2 = controller.executeTasks()
+        executionResult2.failures.empty
 
         def finishResult = controller.finishBuild(null)
         finishResult.failures.empty
@@ -159,6 +183,22 @@ class DefaultBuildLifecycleControllerTest extends Specification {
         finishResult.failures.empty
     }
 
+    void testCannotScheduleTasksWhenNotPrepared() {
+        when:
+        def controller = controller()
+        controller.scheduleRequestedTasks()
+
+        then:
+        def t = thrown IllegalStateException
+
+        when:
+        def finishResult = controller.finishBuild(null)
+
+        then:
+        1 * buildBroadcaster.buildFinished({ it.failure == null })
+        finishResult.failures.empty
+    }
+
     void testCannotExecuteTasksWhenNothingHasBeenScheduled() {
         when:
         def controller = controller()
@@ -200,7 +240,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
     void testNotifiesListenerOnTaskExecutionFailure() {
         given:
-        expectTaskGraphBuilt()
+        expectRequestedTasksScheduled()
         expectTasksRunWithFailure(failure)
 
         when:
@@ -225,7 +265,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
         def failure2 = new RuntimeException()
 
         given:
-        expectTaskGraphBuilt()
+        expectRequestedTasksScheduled()
         expectTasksRunWithFailure(failure, failure2)
 
         when:
@@ -248,7 +288,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
     void testTransformsBuildFinishedListenerFailure() {
         given:
-        expectTaskGraphBuilt()
+        expectRequestedTasksScheduled()
         expectTasksRun()
 
         and:
@@ -270,7 +310,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
         def failure3 = new RuntimeException()
 
         given:
-        expectTaskGraphBuilt()
+        expectRequestedTasksScheduled()
         expectTasksRunWithFailure(failure, failure2)
 
         and:
@@ -338,10 +378,15 @@ class DefaultBuildLifecycleControllerTest extends Specification {
         1 * buildModelController.loadedSettings >> { throw failure }
     }
 
-    private void expectTaskGraphBuilt() {
-        1 * workPreparer.populateWorkGraph(gradleMock, _) >> { GradleInternal gradle, Consumer consumer -> consumer.accept() }
+    private void expectRequestedTasksScheduled() {
         1 * buildModelController.prepareToScheduleTasks()
+        1 * workPreparer.populateWorkGraph(gradleMock, _) >> { GradleInternal gradle, Consumer consumer -> consumer.accept() }
         1 * buildModelController.scheduleRequestedTasks()
+    }
+
+    private void expectTasksScheduled() {
+        1 * buildModelController.prepareToScheduleTasks()
+        1 * workPreparer.populateWorkGraph(gradleMock, _) >> { GradleInternal gradle, Consumer consumer -> consumer.accept() }
     }
 
     private void expectTasksRun() {
