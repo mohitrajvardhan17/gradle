@@ -110,16 +110,13 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
         then:
         def t = thrown RuntimeException
-        t == transformedException
-
-        and:
-        1 * exceptionAnalyser.transform(failure) >> transformedException
+        t == failure
 
         when:
         def finishResult = controller.finishBuild(null)
 
         then:
-        1 * exceptionAnalyser.transform([transformedException]) >> transformedException
+        1 * exceptionAnalyser.transform([failure]) >> transformedException
         1 * buildBroadcaster.buildFinished({ it.failure == transformedException })
         finishResult.failures.empty
     }
@@ -151,16 +148,13 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
         then:
         def t = thrown RuntimeException
-        t == transformedException
-
-        and:
-        1 * exceptionAnalyser.transform(failure) >> transformedException
+        t == failure
 
         when:
         def finishResult = controller.finishBuild(null)
 
         then:
-        1 * exceptionAnalyser.transform([transformedException]) >> transformedException
+        1 * exceptionAnalyser.transform([failure]) >> transformedException
         1 * buildBroadcaster.buildFinished({ it.failure == transformedException })
         finishResult.failures.empty
     }
@@ -188,20 +182,18 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
         when:
         def controller = this.controller()
+        controller.prepareToScheduleTasks()
         controller.scheduleRequestedTasks()
 
         then:
         def t = thrown RuntimeException
-        t == transformedException
-
-        and:
-        1 * exceptionAnalyser.transform(failure) >> transformedException
+        t == failure
 
         when:
         def finishResult = controller.finishBuild(null)
 
         then:
-        1 * exceptionAnalyser.transform([transformedException]) >> transformedException
+        1 * exceptionAnalyser.transform([failure]) >> transformedException
         1 * buildBroadcaster.buildFinished({ it.failure == transformedException && it.action == "Build" })
         finishResult.failures.empty
     }
@@ -213,6 +205,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
         when:
         def controller = this.controller()
+        controller.prepareToScheduleTasks()
         controller.scheduleRequestedTasks()
         def executionResult = controller.executeTasks()
 
@@ -237,6 +230,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
         when:
         def controller = this.controller()
+        controller.prepareToScheduleTasks()
         controller.scheduleRequestedTasks()
         def executionResult = controller.executeTasks()
 
@@ -259,6 +253,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
         and:
         def controller = controller()
+        controller.prepareToScheduleTasks()
         controller.scheduleRequestedTasks()
         controller.executeTasks()
 
@@ -280,6 +275,7 @@ class DefaultBuildLifecycleControllerTest extends Specification {
 
         and:
         def controller = controller()
+        controller.prepareToScheduleTasks()
         controller.scheduleRequestedTasks()
 
         when:
@@ -298,8 +294,11 @@ class DefaultBuildLifecycleControllerTest extends Specification {
     }
 
     void testCleansUpOnStop() {
-        when:
+        given:
         def controller = controller()
+        controller.finishBuild(null)
+
+        when:
         controller.stop()
 
         then:

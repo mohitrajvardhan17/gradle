@@ -16,6 +16,8 @@
 
 package org.gradle.internal.build;
 
+import org.gradle.internal.UncheckedException;
+
 import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.Set;
@@ -49,7 +51,7 @@ public class StateTransitionController<T extends StateTransitionController.State
     public void assertInState(T finished) {
         synchronized (this) {
             if (state != finished) {
-                throw new IllegalStateException("Should be in state " + state + ".");
+                throw new IllegalStateException("Should be in state " + finished + ".");
             }
         }
     }
@@ -57,6 +59,8 @@ public class StateTransitionController<T extends StateTransitionController.State
     /**
      * Calculates a value when the current state is not the given state. Allows concurrent access to the state and does not block other threads from transitioning the state.
      * Fails if the current state is the given state or if a transition to the given state is happening or a previous transition has failed.
+     *
+     * <p>You should try to not use this method, as it does not provide full thread safety.</p>
      */
     public <S> S notInStateIgnoreOtherThreads(T state, Supplier<S> supplier) {
         synchronized (this) {
@@ -68,7 +72,16 @@ public class StateTransitionController<T extends StateTransitionController.State
                 throw new IllegalStateException("Should not be in state " + state + ".");
             }
         }
-        return supplier.get();
+        try {
+            return supplier.get();
+        } catch (Throwable t) {
+            synchronized (this) {
+                if (failure == null) {
+                    failure = ExecutionResult.failed(t);
+                }
+            }
+            throw UncheckedException.throwAsUncheckedException(t);
+        }
     }
 
     /**
@@ -85,7 +98,12 @@ public class StateTransitionController<T extends StateTransitionController.State
             if (this.state != state) {
                 throw new IllegalStateException("Expected to be in state " + state + " but is in state " + this.state + ".");
             }
-            action.run();
+            try {
+                action.run();
+            } catch (Throwable t) {
+                failure = ExecutionResult.failed(t);
+                failure.rethrow();
+            }
         } finally {
             releaseOwnership(previousOwner);
         }

@@ -76,8 +76,8 @@ public class DefaultBuildLifecycleController implements BuildLifecycleController
 
     @Override
     public GradleInternal getGradle() {
-        // Should not ignore other threads, however it is possible for this to be queried by tasks at execution time (that is, when another thread is transitioning
-        // the task graph state). Instead, it may be better to:
+        // Should not ignore other threads, however it is currently possible for this to be queried by tasks at execution time (that is, when another thread is
+        // transitioning the task graph state). Instead, it may be better to:
         // - have the threads use some specific immutable view of the build model state instead of requiring direct access to the build model.
         // - not have a thread blocked around task execution, so that other threads can use the build model.
         // - maybe split the states into one for the build model and one for the task graph.
